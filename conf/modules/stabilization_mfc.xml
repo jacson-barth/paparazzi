@@ -29,15 +29,15 @@
     <dl_settings>
       <dl_settings NAME="mfc">
 	<dl_settings name="pitch">
-			<dl_setting var="mfc_pitch.time_trajec" min="0" max="3000" step="10" shortname="TT" param="STABILIZATION_MFC_PITCH_TIME_TRAJECTORY" module="stabilization/stabilization_mfc"/>
-			<dl_setting MIN="0" MAX="1" STEP="1" VAR="mfc_pitch.use_trajec_sp" shortname="Use_trajec_sp" param="STABILIZATION_MFC_PITCH_USE_TRAJECTORY_SP">
-				<strip_button name="Use_trajec_sp" value="1"/>
-	      		</dl_setting>
-			<dl_setting var="mfc_pitch.int_window" min="0" max="500" step="1" shortname="IW" param="STABILIZATION_MFC_PITCH_INTEGRATION_WINDOW" module="stabilization/stabilization_mfc"/>
-			<dl_setting var="mfc_pitch.alpha"   min="0.01" max="100" step="0.01" shortname="ALP" param="STABILIZATION_MFC_PITCH_ALPHA" module="stabilization/stabilization_mfc"/>
-			<dl_setting var="mfc_pitch.command_filter" min="1" max="500" step="1" shortname="CF" param="STABILIZATION_MFC_PITCH_COMMAND_FILTER" module="stabilization/stabilization_mfc"/>
-			<dl_setting var="mfc_pitch.kp" min="0" max="200" step="0.1" shortname="KP" param="STABILIZATION_MFC_PITCH_PROPORTIONAL_GAIN" module="stabilization/stabilization_mfc"/>
-			<dl_setting var="mfc_pitch.kd" min="0" max="200" step="0.1" shortname="KD" param="STABILIZATION_MFC_PITCH_DERIVATIVE_GAIN" module="stabilization/stabilization_mfc"/>
+		<dl_setting var="mfc_pitch.time_trajec" min="0" max="3000" step="10" shortname="TT" param="STABILIZATION_MFC_PITCH_TIME_TRAJECTORY" module="stabilization/stabilization_mfc"/>
+		<dl_setting MIN="0" MAX="1" STEP="1" VAR="mfc_pitch.use_trajec_sp" shortname="Use_trajec_sp" param="STABILIZATION_MFC_PITCH_USE_TRAJECTORY_SP">
+			<strip_button name="Use_trajec_sp" value="1"/>
+	      	</dl_setting>
+		<dl_setting var="mfc_pitch.int_window" min="0" max="500" step="1" shortname="IW" param="STABILIZATION_MFC_PITCH_INTEGRATION_WINDOW" module="stabilization/stabilization_mfc"/>
+		<dl_setting var="mfc_pitch.alpha"   min="0.01" max="100" step="0.01" shortname="ALP" param="STABILIZATION_MFC_PITCH_ALPHA" module="stabilization/stabilization_mfc"/>
+		<dl_setting var="mfc_pitch.command_filter" min="1" max="500" step="1" shortname="CF" param="STABILIZATION_MFC_PITCH_COMMAND_FILTER" module="stabilization/stabilization_mfc"/>
+		<dl_setting var="mfc_pitch.kp" min="0" max="200" step="0.1" shortname="KP" param="STABILIZATION_MFC_PITCH_PROPORTIONAL_GAIN" module="stabilization/stabilization_mfc"/>
+		<dl_setting var="mfc_pitch.kd" min="0" max="200" step="0.1" shortname="KD" param="STABILIZATION_MFC_PITCH_DERIVATIVE_GAIN" module="stabilization/stabilization_mfc"/>
 		</dl_settings>
         <dl_settings name="roll">
                 <dl_setting var="mfc_roll.time_trajec" min="0" max="500" step="10" shortname="TT" param="STABILIZATION_MFC_ROLL_TIME_TRAJECTORY" module="stabilization/stabilization_mfc"/>
@@ -50,6 +50,17 @@
         	<dl_setting var="mfc_roll.kp" min="0" max="200" step="0.1" shortname="KP" param="STABILIZATION_MFC_ROLL_PROPORTIONAL_GAIN" module="stabilization/stabilization_mfc"/>
         	<dl_setting var="mfc_roll.kd" min="0" max="200" step="0.1" shortname="KD" param="STABILIZATION_MFC_ROLL_DERIVATIVE_GAIN" module="stabilization/stabilization_mfc"/>
         </dl_settings>
+	<dl_settings name="yaw">
+		<dl_setting var="mfc_yaw.time_trajec" min="0" max="500" step="10" shortname="TT" param="STABILIZATION_MFC_YAW_TIME_TRAJECTORY" module="stabilization/stabilization_mfc"/>
+		<dl_setting MIN="0" MAX="1" STEP="1" VAR="mfc_yaw.use_trajec_sp" shortname="Use_trajec_sp" param="STABILIZATION_MFC_YAW_USE_TRAJECTORY_SP">
+			<strip_button name="Use_trajec_sp" value="1"/>
+      		</dl_setting>
+		<dl_setting var="mfc_yaw.int_window" min="0" max="500" step="1" shortname="IW" param="STABILIZATION_MFC_YAW_INTEGRATION_WINDOW" module="stabilization/stabilization_mfc"/>
+		<dl_setting var="mfc_yaw.alpha"   min="0.01" max="100" step="0.01" shortname="ALP" param="STABILIZATION_MFC_YAW_ALPHA" module="stabilization/stabilization_mfc"/>
+		<dl_setting var="mfc_yaw.command_filter" min="1" max="500" step="1" shortname="CF" param="STABILIZATION_MFC_YAW_COMMAND_FILTER" module="stabilization/stabilization_mfc"/>
+		<dl_setting var="mfc_yaw.kp" min="0" max="200" step="0.1" shortname="KP" param="STABILIZATION_MFC_YAW_PROPORTIONAL_GAIN" module="stabilization/stabilization_mfc"/>
+		<dl_setting var="mfc_yaw.kd" min="0" max="200" step="0.1" shortname="KD" param="STABILIZATION_MFC_YAW_DERIVATIVE_GAIN" module="stabilization/stabilization_mfc"/>
+	</dl_settings>
       </dl_settings>
     </dl_settings>
   </settings>
@@ -57,7 +68,7 @@
     <file name="stabilization_mfc.h"/>
   </header>
   <init fun="stabilization_mfc_init()"/>
-  <makefile target="ap|sim|nps" firmware="fixedwing">
+  <makefile target="ap|sim|nps">
     <file name="stabilization_mfc.c" dir="$(SRC_FIRMWARE)/stabilization"/>
   </makefile>
 </module>
