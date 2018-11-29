@@ -10,6 +10,11 @@
 #include "paparazzi.h"
 #include "generated/airframe.h"
 
+#include "firmwares/rotorcraft/stabilization/stabilization_attitude_common_int.h"
+#include "firmwares/rotorcraft/stabilization/stabilization_attitude_ref_quat_int.h"
+
+extern struct Int32Quat   stab_att_sp_quat;  ///< with #INT32_QUAT_FRAC
+extern struct Int32Eulers stab_att_sp_euler; ///< with #INT32_ANGLE_FRAC
 
 struct MfcParameters{
   // Vector that keep the previous values
@@ -46,13 +51,19 @@ extern struct MfcParameters mfc_yaw;
 extern pprz_t mfc_roll_cmd_pprz;  // roll  -> diff thrust
 extern pprz_t mfc_pitch_cmd_pprz; // pitch -> elevator
 extern pprz_t mfc_yaw_cmd_pprz;   // yaw  -> aileron
+extern pprz_t mfc_elevator_setpoint_pprz;
 
 // MFC functions
 extern void stabilization_mfc_init(void);
-extern void stabilization_mfc_init_time_state(void);
-extern void init_filters(void);
+extern void stabilization_mfc_enter(void);
 extern void stabilization_mfc_set_failsafe_setpoint(void);
-extern int16_t stabilization_mfc_calc_cmd(struct MfcParameters *mfc_stt, float measure);
-extern void stabilization_mfc_run(void);
+extern void stabilization_mfc_set_rpy_setpoint_i(struct Int32Eulers *rpy);
+extern void stabilization_mfc_set_earth_cmd_i(struct Int32Vect2 *cmd, int32_t heading);
+extern void stabilization_mfc_run(bool in_flight);
+extern void stabilization_mfc_read_rc(bool in_flight, bool in_carefree, bool coordinated_turn);
+
+//extern void init_filters(void);
+//extern int16_t stabilization_mfc_calc_cmd(struct MfcParameters *mfc_stt, float measure);
+//extern void stabilization_mfc_run(void);
 
 #endif

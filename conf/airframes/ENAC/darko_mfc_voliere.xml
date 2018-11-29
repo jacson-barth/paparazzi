@@ -6,101 +6,6 @@
 
 <airframe name="DarkO_mfc">
 
-  <firmware name="rotorcraft">
-    <target name="ap" board="apogee_1.0_chibios">
-      <configure name="PERIODIC_FREQUENCY" value="512"/>
-      <autopilot name="mfc_darko_ap.xml"/>
-      <module name="radio_control" type="sbus">
-        <!-- Put the mode on channel AUX1-->
-        <define name="RADIO_KILL_SWITCH" value="RADIO_GAIN1"/>
-      </module>
-    </target>
-
-    <module name="stabilization" type="mfc"/>
-    <define name="LOG_MFC" value="FALSE"/>
-
-    <target name="nps" board="pc">
-      <module name="fdm" type="jsbsim"/>
-      <module name="udp"/>
-      <module name="radio_control" type="datalink"/>
-      <module name="logger_file">
-        <define name="FILE_LOGGER_PATH" value="/home/parallels/Documents"/>
-      </module>
-    </target>
-
-    <module name="actuators"     type="pwm">
-      <define name="SERVO_HZ" value="400"/>
-      <!--define name="USE_SERVOS_7AND8"/-->
-    </module>
-
-    <module name="send_imu_mag_current">
-      <define name="MILLIAMP_AT_IDLE_THROTTLE" value="1000"/>
-      <define name="MILLIAMP_AT_FULL_THROTTLE" value="20000"/>
-      <define name="CURRENT_ESTIMATION_NONLINEARITY" value="1.5"/>
-    </module>
-    <module name="sys_mon"/>
-
-    <module name="telemetry" type="xbee_api"/>
-
-    <module name="imu" type="apogee"> <!--apogee_mpu9150-->
-      <!-- <define name="APOGEE_USE_MPU9150" value="TRUE"/> -->
-      <define name="IMU_APOGEE_CHAN_X" value="1"/>      
-      <define name="IMU_APOGEE_CHAN_Y" value="0"/>
-      <define name="IMU_APOGEE_CHAN_Z" value="2"/> 
-      <!--define name="IMU_APOGEE_CHAN_X" value="2"/>      
-      <define name="IMU_APOGEE_CHAN_Y" value="0"/>
-      <define name="IMU_APOGEE_CHAN_Z" value="1"/--> 
-      <define name="APOGEE_GYRO_RANGE" value="MPU60X0_GYRO_RANGE_2000"/>
-      <define name="APOGEE_ACCEL_RANGE" value="MPU60X0_ACCEL_RANGE_16G"/>
-      <!--Set the frequency to 2000 hz with 256 Hz internal low pass-->
-      <define name="APOGEE_LOWPASS_FILTER" value="MPU60X0_DLPF_256HZ"/>
-      <define name="APOGEE_SMPLRT_DIV" value="3"/>
-    </module>
-
-    <!--<module name="servo_tester"/>-->
-
-    <module name="air_data">
-      <define name="USE_AIRSPEED_AIR_DATA" value="FALSE"/>
-    </module>
-
-    <!--module name="ahrs"          type="int_cmpl_quat"-->
-      <!--configure name="USE_MAGNETOMETER" value="TRUE"/-->
-      <!--[>Use external magnetometer<]-->
-      <!--define name="AHRS_ICQ_MAG_ID" value="MAG_HMC58XX_SENDER_ID"/-->
-      <!--define name="AHRS_GRAVITY_UPDATE_COORDINATED_TURN" value="TRUE"/-->
-      <!--define name="AHRS_GPS_SPEED_IN_NEGATIVE_Z_DIRECTION" value="TRUE"/-->
-    <!--/module-->
-
-<!--     <module name="ahrs" type="int_cmpl_quat">
-      <configure name="USE_MAGNETOMETER" value="TRUE"/>
-      <define name="AHRS_GRAVITY_UPDATE_COORDINATED_TURN" value="TRUE"/>
-      <define name="AHRS_GPS_SPEED_IN_NEGATIVE_Z_DIRECTION" value="TRUE"/>
-    </module> -->
-
-    <!--module name="ins" we were using this normally /-->
-    <!--module name="gps"           type="ublox">
-      <configure name="GPS_BAUD" value="B115200"/>
-    </module-->
-
-    <module name="gps" type="datalink"/>
-    <module name="ins" type="gps_passthrough"/>
-    <module name="ahrs" type="int_cmpl_quat">
-      <configure name="USE_MAGNETOMETER" value="FALSE"/>
-    </module>
-
-    <!--module name="ins" type="float_invariant">
-      <define name="INS_PROPAGATE_FREQUENCY" value="500"/>
-      <define name="INS_FINV_MAG_ID" value="MAG_HMC58XX_SENDER_ID"/>
-    </module-->
-    
-    
-    <!-- <module name="gps" type="ubx_ucenter"/> -->
-    <!--module name="tlsf"/>
-    <module name="pprzlog"/>
-    <module name="logger" type="sd_chibios"/-->
-    <!--module name="flight_recorder"/-->
-  </firmware>
-
   <servos driver="Pwm">
     <servo name="ELEVON_LEFT" no="0" min="1214" neutral="1490" max="1786"/>
     <servo name="ELEVON_RIGHT" no="1" min="1214" neutral="1490" max="1786"/>
@@ -116,10 +21,10 @@
   </commands>
 
   <command_laws>
-    <set servo="ELEVON_LEFT" 	value="autopilot.motors_on ? actuators_pprz[0] : 0"/>
-    <set servo="ELEVON_RIGHT" 	value="autopilot.motors_on ? actuators_pprz[1] : 0"/>
-    <set servo="RM" 		value="autopilot.motors_on ? actuators_pprz[2] : -MAX_PPRZ"/>
-    <set servo="LM" 		value="autopilot.motors_on ? actuators_pprz[3] : -MAX_PPRZ"/>
+    <set servo="ELEVON_LEFT" value="autopilot.motors_on ? actuators_pprz[0] : 0"/>
+    <set servo="ELEVON_RIGHT" value="autopilot.motors_on ? actuators_pprz[1] : 0"/>
+    <set servo="RM" value="autopilot.motors_on ? actuators_pprz[2] : -MAX_PPRZ"/>
+    <set servo="LM" value="autopilot.motors_on ? actuators_pprz[3] : -MAX_PPRZ"/>
   </command_laws>
 
   <section name="IMU" prefix="IMU_">
@@ -161,19 +66,12 @@
     <define name="BODY_TO_IMU_PSI" value="0." unit="deg"/>
   </section>
 
-  <!-- <section name="AUTOPILOT"> 
+  <section name="AUTOPILOT"> 
     <define name="MODE_MANUAL"  value="AP_MODE_ATTITUDE_DIRECT"/>
-    <define name="MODE_AUTO1" value="AP_MODE_FORWARD"/>
-    <define name="MODE_AUTO2"  value="AP_MODE_HOVER_Z_HOLD"/>
+    <define name="MODE_AUTO1" 	value="AP_MODE_FORWARD"/>
+    <define name="MODE_AUTO2"  	value="AP_MODE_HOVER_Z_HOLD"/>
     <define name="MODE_STARTUP" value="AP_MODE_NAV"/>
-  </section> -->
-
-  <!--section name="AUTOPILOT">
-    <define name="MODE_MANUAL" value="AP_MODE_ATTITUDE_DIRECT"/>
-    <define name="MODE_AUTO1" value="AP_MODE_ATTITUDE_Z_HOLD"/>
-    <define name="MODE_AUTO2" value="AP_MODE_NAV"/>
-    <define name="MODE_STARTUP" value="AP_MODE_NAV"/>
-  </section-->
+  </section>
 
   <section name="BAT">
     <define name="LOW_BAT_LEVEL" value="10.5" units="V"/>
@@ -190,19 +88,32 @@
     <define name="SP_PSI_DELTA_LIMIT" value="90" unit="deg"/>
   </section>
 
+  <section name="STABILIZATION_ATTITUDE_MFC" prefix="STABILIZATION_MFC_">
+    <!-- mfc parameters -->
+    <define name="REF_ERR_P" value="70"/>
+  </section>
+
   <!-- Gains for vertical navigation -->
-  <!--section name="GUIDANCE_V" prefix="GUIDANCE_V_">
+  <section name="GUIDANCE_V" prefix="GUIDANCE_V_">
     <define name="HOVER_KP" value="174"/>
     <define name="HOVER_KD" value="92"/>
     <define name="HOVER_KI" value="72"/>
     <define name="NOMINAL_HOVER_THROTTLE" value="0.4"/>
     <define name="ADAPT_THROTTLE_ENABLED" value="FALSE"/>
-  </section-->
+  </section>
 
-  <!--section name="NAV">
+  <!-- Gains for horizontal navigation-->
+  <section name="GUIDANCE_H" prefix="GUIDANCE_H_">
+    <define name="PGAIN" value="100"/> <!-- 100 for CYFOAM-->
+    <define name="DGAIN" value="100"/> <!-- 100 for CYFOAM--> 
+    <define name="IGAIN" value="10"/>  <!-- 0 for CYFOAM-->
+    <!--define name="REF_MAX_SPEED" value="0.5" /--> <!-- For mini cyclone inside ENAC Voliere-->
+  </section>
+
+  <section name="NAV">
     <define name="NAV_CLIMB_VSPEED" value="1.0"/>
     <define name="NAV_DESCEND_VSPEED" value="-0.5"/>
-  </section-->
+  </section>
 
   <section name="AHRS" prefix="AHRS_">
     <!--<define name="H_X" value="0.5138"/>-->
@@ -219,17 +130,9 @@
     <define name="H_Z" value="0.8578"/>
   </section>
 
-  <!-- Gains for horizontal navigation-->
-  <!--section name="GUIDANCE_H" prefix="GUIDANCE_H_">
-    <define name="PGAIN" value="100"/> <!-- 100 for CYFOAM-->
-    <!--define name="DGAIN" value="100"/> <!-- 100 for CYFOAM--> 
-    <!--define name="IGAIN" value="10"/>  <!-- 0 for CYFOAM-->
-    <!--define name="REF_MAX_SPEED" value="0.5" /--> <!-- For mini cyclone inside ENAC Voliere-->
-  <!--/section-->
-
   <section name="MISC">
     <!--The Quadshot uses (when TRUE) a slightly different axis system for the setpoint, to make both hovering and flying forward intuitive-->
-    <define name="USE_EARTH_BOUND_RC_SETPOINT" value="TRUE"/>
+    <define name="USE_EARTH_BOUND_RC_SETPOINT" value="FALSE"/>
     <!-- This is the pitch angle that the Quadshot will have in forward flight, where 0 degrees is hover-->
     <define name="TRANSITION_MAX_OFFSET" value="-75.0" unit="deg"/>
     <define name="NO_RC_THRUST_LIMIT" value="TRUE"/>
@@ -237,6 +140,16 @@
 
     <define name="BARO_PERIODIC_FREQUENCY" value="50"/>
     <define name="USE_AIRSPEED" value="TRUE"/>
+    <define name="GUIDANCE_H_MAX_BANK" value="60" unit="deg"/>
+
+    <define name="FWD_SIDESLIP_GAIN" value="0.22"/>
+
+    <define name="EFF_SCHED_USE_FUNCTION" value="TRUE"/>
+
+    <!--define name="ARRIVED_AT_WAYPOINT" value="30.0"/-->
+    <!--define name="DEFAULT_CIRCLE_RADIUS" value="50.0"/--> <!-- AKA: NAV_RADIUS -->
+    <define name="ARRIVED_AT_WAYPOINT" value="0.50"/> <!-- For indoor -->
+    <define name="DEFAULT_CIRCLE_RADIUS" value="1.7"/> <!-- For indoor -->
   </section>
 
   <modules main_freq="512">
@@ -246,7 +159,7 @@
       <define name="SDLOG_START_DELAY" value="10"/>
     </module>
     <module name="logger" type="sd_chibios"/>
-    <!--<module name="flight_recorder"/>-->
+    <module name="flight_recorder"/>
     <!--<module name="logger_spi_link"/>-->
 
     <!--Use an airspeed sensor and get the measured airspeed in the messages-->
@@ -298,4 +211,94 @@
     <define name="ALT_SHIFT_MINUS" value="-1"/>
   </section>
 
+  <firmware name="rotorcraft">
+    <define name="CONTROL_FREQUENCY" value="500"/>
+    <autopilot name="mfc_darko_ap.xml"/>
+   
+    <target name="ap" board="apogee_1.0_chibios">
+      <configure name="PERIODIC_FREQUENCY" value="500"/>
+      <module name="radio_control" type="sbus">
+        <!-- Put the mode on channel AUX1-->
+        <define name="RADIO_KILL_SWITCH" value="RADIO_GAIN1"/>
+      </module>
+    </target>
+
+    <target name="nps" board="pc">
+      <module name="fdm" type="jsbsim"/>
+      <module name="udp"/>
+      <module name="radio_control" type="datalink"/>
+      <module name="logger_file">
+        <define name="FILE_LOGGER_PATH" value="/home/parallels/Documents"/>
+      </module>
+    </target>
+
+    <module name="actuators"     type="pwm">
+      <define name="SERVO_HZ" value="400"/>
+      <!--define name="USE_SERVOS_7AND8"/-->
+    </module>
+
+    <module name="send_imu_mag_current">
+      <define name="MILLIAMP_AT_IDLE_THROTTLE" value="1000"/>
+      <define name="MILLIAMP_AT_FULL_THROTTLE" value="20000"/>
+      <define name="CURRENT_ESTIMATION_NONLINEARITY" value="1.5"/>
+    </module>
+    <module name="sys_mon"/>
+
+    <module name="telemetry" type="xbee_api"/>
+
+    <module name="imu" type="apogee"> <!--apogee_mpu9150-->
+      <!-- <define name="APOGEE_USE_MPU9150" value="TRUE"/> -->
+      <define name="IMU_APOGEE_CHAN_X" value="1"/>      
+      <define name="IMU_APOGEE_CHAN_Y" value="0"/>
+      <define name="IMU_APOGEE_CHAN_Z" value="2"/> 
+      <define name="APOGEE_GYRO_RANGE" value="MPU60X0_GYRO_RANGE_2000"/>
+      <define name="APOGEE_ACCEL_RANGE" value="MPU60X0_ACCEL_RANGE_16G"/>
+      <!--Set the frequency to 2000 hz with 256 Hz internal low pass-->
+      <define name="APOGEE_LOWPASS_FILTER" value="MPU60X0_DLPF_256HZ"/>
+      <define name="APOGEE_SMPLRT_DIV" value="3"/>
+    </module>
+
+    <module name="air_data">
+      <define name="USE_AIRSPEED_AIR_DATA" value="FALSE"/>
+    </module>
+
+    <module name="stabilization" type="mfc"/>
+
+    <!--module name="ahrs"          type="int_cmpl_quat"-->
+      <!--configure name="USE_MAGNETOMETER" value="TRUE"/-->
+      <!--[>Use external magnetometer<]-->
+      <!--define name="AHRS_ICQ_MAG_ID" value="MAG_HMC58XX_SENDER_ID"/-->
+      <!--define name="AHRS_GRAVITY_UPDATE_COORDINATED_TURN" value="TRUE"/-->
+      <!--define name="AHRS_GPS_SPEED_IN_NEGATIVE_Z_DIRECTION" value="TRUE"/-->
+    <!--/module-->
+
+<!--     <module name="ahrs" type="int_cmpl_quat">
+      <configure name="USE_MAGNETOMETER" value="TRUE"/>
+      <define name="AHRS_GRAVITY_UPDATE_COORDINATED_TURN" value="TRUE"/>
+      <define name="AHRS_GPS_SPEED_IN_NEGATIVE_Z_DIRECTION" value="TRUE"/>
+    </module> -->
+
+    <!--module name="ins" we were using this normally /-->
+    <!--module name="gps"           type="ublox">
+      <configure name="GPS_BAUD" value="B115200"/>
+    </module-->
+
+    <module name="gps" type="datalink"/>
+    <module name="ins" type="gps_passthrough"/>
+    <module name="ahrs" type="int_cmpl_quat">
+      <configure name="USE_MAGNETOMETER" value="FALSE"/>
+    </module>
+
+    <!--module name="ins" type="float_invariant">
+      <define name="INS_PROPAGATE_FREQUENCY" value="500"/>
+      <define name="INS_FINV_MAG_ID" value="MAG_HMC58XX_SENDER_ID"/>
+    </module-->
+    
+    
+    <!-- <module name="gps" type="ubx_ucenter"/> -->
+    <!--module name="tlsf"/>
+    <module name="pprzlog"/>
+    <module name="logger" type="sd_chibios"/-->
+    <!--module name="flight_recorder"/-->
+  </firmware>
 </airframe>

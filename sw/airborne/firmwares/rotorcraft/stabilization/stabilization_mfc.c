@@ -30,9 +30,14 @@
  */
 
 #include "firmwares/rotorcraft/stabilization/stabilization_mfc.h"
+#include "firmwares/rotorcraft/stabilization/stabilization_attitude.h"
+#include "firmwares/rotorcraft/stabilization/stabilization_attitude_rc_setpoint.h"
+#include "firmwares/rotorcraft/stabilization/stabilization_attitude_quat_transformations.h"
+
 #include "state.h"
 #include "std.h"
 #include "generated/airframe.h"
+#include "navigation.h"
 #include "paparazzi.h"
 #include "autopilot.h"
 #include "mcu_periph/sys_time.h"
@@ -46,7 +51,7 @@
 #endif
 
 #ifndef STABILIZATION_MFC_CONTROL_FREQUENCY
-#define STABILIZATION_MFC_CONTROL_FREQUENCY 500
+#define STABILIZATION_MFC_CONTROL_FREQUENCY 512
 #endif
 
 /* Parameters for roll MFC */
@@ -139,6 +144,10 @@
 #define STABILIZATION_MFC_YAW_COMMAND_FILTER 1.f
 #endif
 
+#ifndef STABILIZATION_MFC_MAX_THROTTLE
+#define STABILIZATION_MFC_MAX_THROTTLE 2000.f
+#endif
+
 #if LOG_MFC
 #include "modules/loggers/sdlog_chibios.h"
 bool log_started = false;
@@ -148,6 +157,27 @@ struct Mfc mfc;
 struct MfcParameters mfc_roll;
 struct MfcParameters mfc_pitch;
 struct MfcParameters mfc_yaw;
+
+struct Int32Eulers stab_att_sp_euler;
+struct Int32Quat   stab_att_sp_quat;
+
+pprz_t mfc_elevator_setpoint_pprz;
+
+/**
+ * Function that resets important values upon engaging MFC.
+ *
+ * Don't reset inputs and filters, because it is unlikely to switch stabilization in flight,
+ * and there are multiple modes that use (the same) stabilization. Resetting the controller
+ * is not so nice when you are flying.
+ * FIXME: Ideally we should detect when coming from something that is not INDI
+ */
+void stabilization_mfc_enter(void)
+{
+  /* reset psi setpoint to current psi angle */
+  stab_att_sp_euler.psi = stabilization_attitude_get_heading_i();
+  stabilization_mfc_init();
+
+}
 
 //#if PERIODIC_TELEMETRY
 static void send_mfc_values(struct transport_tx *trans, struct link_device *dev)
@@ -190,7 +220,7 @@ static void send_mfc_values(struct transport_tx *trans, struct link_device *dev)
  */
 void stabilization_mfc_init(void)
 {
-  init_filters();
+  //init_filters();
   //mfc_parameters.setpoint = mfc_pitch_setpoint;
   //
 
@@ -240,16 +270,6 @@ void stabilization_mfc_init(void)
   //mfc_pitch.setpoint_trajec[1] = att_eulers->theta;
   //mfc_pitch.setpoint_trajec[0] = att_eulers->theta;
 
-#if PERIODIC_TELEMETRY
-  register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_STAB_ATTITUDE_MFC, send_mfc_values);
-#endif
-}
-
-/**
- * Function that initializes time and states
- */
-void stabilization_mfc_init_time_state(void)
-{
   // Time and state initialization every time that MFC is requested
   mfc.start_time = sec_of_sys_time_ticks(sys_time.nb_tick);
 	
@@ -282,8 +302,11 @@ void stabilization_mfc_init_time_state(void)
   mfc_yaw.measure  = att_eulers->psi;
   float_vect_zero(mfc_yaw.error, 3);
   float_vect_zero(mfc_yaw.estimator_num, 3);
-  float_vect_zero(mfc_yaw.estimator_den, 3);  
-  
+  float_vect_zero(mfc_yaw.estimator_den, 3);
+
+#if PERIODIC_TELEMETRY
+  register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_STAB_ATTITUDE_MFC, send_mfc_values);
+#endif
 }
 
 /**
@@ -295,17 +318,59 @@ void init_filters(void)
 }
 
 /**
- * Function calculate the failsafe setpoint
+ * Function that calculates the failsafe setpoint
  */
 void stabilization_mfc_set_failsafe_setpoint(void)
 {
-  // Nothing for the moment
+  /* set failsafe to zero roll/pitch and current heading */
+  int32_t heading2 = stabilization_attitude_get_heading_i() / 2;
+  PPRZ_ITRIG_COS(stab_att_sp_quat.qi, heading2);
+  stab_att_sp_quat.qx = 0;
+  stab_att_sp_quat.qy = 0;
+  PPRZ_ITRIG_SIN(stab_att_sp_quat.qz, heading2);
+}
+
+/**
+ * @param rpy rpy from which to calculate quaternion setpoint
+ *
+ * Function that calculates the setpoint quaternion from rpy
+ */
+void stabilization_mfc_set_rpy_setpoint_i(struct Int32Eulers *rpy)
+{
+  // stab_att_sp_euler.psi still used in ref..
+  stab_att_sp_euler = *rpy;
+
+  int32_quat_of_eulers(&stab_att_sp_quat, &stab_att_sp_euler);
+}
+
+/**
+ * @param cmd 2D command in North East axes
+ * @param heading Heading of the setpoint
+ *
+ * Function that calculates the setpoint quaternion from a command in earth axes
+ */
+void stabilization_mfc_set_earth_cmd_i(struct Int32Vect2 *cmd, int32_t heading)
+{
+  // stab_att_sp_euler.psi still used in ref..
+  stab_att_sp_euler.psi = heading;
+
+  // compute sp_euler phi/theta for debugging/telemetry
+  /* Rotate horizontal commands to body frame by psi */
+  int32_t psi = stateGetNedToBodyEulers_i()->psi;
+  int32_t s_psi, c_psi;
+  PPRZ_ITRIG_SIN(s_psi, psi);
+  PPRZ_ITRIG_COS(c_psi, psi);
+  stab_att_sp_euler.phi = (-s_psi * cmd->x + c_psi * cmd->y) >> INT32_TRIG_FRAC;
+  stab_att_sp_euler.theta = -(c_psi * cmd->x + s_psi * cmd->y) >> INT32_TRIG_FRAC;
+
+  quat_from_earth_cmd_i(&stab_att_sp_quat, cmd, heading);
 }
 
 /**
  * Function that calculate the command with Model-free control for pitch control
  */
-int16_t stabilization_mfc_calc_cmd(struct MfcParameters *mfc_stt, float measure)
+
+static int16_t stabilization_mfc_calc_cmd(bool in_flight, struct MfcParameters *mfc_stt, float measure)
 {
   mfc.time = sec_of_sys_time_ticks(sys_time.nb_tick) - mfc.start_time;
   mfc_stt->measure  = measure;
@@ -386,35 +451,43 @@ int16_t stabilization_mfc_calc_cmd(struct MfcParameters *mfc_stt, float measure)
   }
 
   //mfc_stt->command[0] = TRIM_PPRZ(mfc_stt->command[0]);
-
-  int16_t mfc_commnand_pprz = TRIM_PPRZ(mfc_stt->command[0]);
+  int16_t mfc_command_pprz = TRIM_PPRZ(mfc_stt->command[0]);
   //int16_t mfc_commnand_pprz = (int16_t) mfc_stt->command[0];
-  return mfc_commnand_pprz;
+  if(in_flight){
+    mfc_command_pprz = TRIM_PPRZ(mfc_stt->command[0]);
+  }
+  return mfc_command_pprz;
 }
 
-void stabilization_mfc_run(void)
+void stabilization_mfc_run(bool in_flight)
 {
   // Update angles measurements
   struct FloatEulers *att = stateGetNedToBodyEulers_f();
 
   // Compute MFC
-  int16_t mfc_roll_cmd	=  stabilization_mfc_calc_cmd(&mfc_roll, att->phi);
-  int16_t mfc_pitch_cmd	=  stabilization_mfc_calc_cmd(&mfc_pitch, att->theta);
-  int16_t mfc_yaw_cmd	=  stabilization_mfc_calc_cmd(&mfc_yaw, att->psi);
+  int16_t mfc_roll_cmd	=  stabilization_mfc_calc_cmd(in_flight, &mfc_roll, att->phi);
+  int16_t mfc_pitch_cmd	=  stabilization_mfc_calc_cmd(in_flight, &mfc_pitch, att->theta);
+  int16_t mfc_yaw_cmd	=  stabilization_mfc_calc_cmd(in_flight, &mfc_yaw, att->psi);
   int16_t throttle_cmd  =  radio_control.values[RADIO_THROTTLE] / MAX_PPRZ * STABILIZATION_MFC_MAX_THROTTLE;
   
   //mfc_throttle_setpoint_pprz = stabilization_mfc_calc_cmd(mfc.mfc_throttle);
 
-   
+  mfc_roll_cmd = 0.f;
+  //mfc_pitch_cmd = 0.f;
+  mfc_yaw_cmd  = 0.f; 
+  throttle_cmd = 0.f;
   //                   Mixing MFC commands for attitude stabilization (rotorcraft setup) -- (coded )
   // Elevon left
-  actuators_pprz[0] = (int16_t) -mfc_pitch_cmd + mfc_yaw_cmd;
+  actuators_pprz[0] = (int16_t) +mfc_pitch_cmd - mfc_yaw_cmd;
   // Elevon right 
   actuators_pprz[1] = (int16_t) -mfc_pitch_cmd - mfc_yaw_cmd;
   // Motor right
-  actuators_pprz[2] = (int16_t) -mfc_roll_cmd;
+  actuators_pprz[2] = (int16_t) -mfc_roll_cmd + throttle_cmd;
   // Motor left
-  actuators_pprz[3] = (int16_t) -mfc_roll_cmd;
+  actuators_pprz[3] = (int16_t) -mfc_roll_cmd + throttle_cmd;
+
+  mfc_elevator_setpoint_pprz = 0.f;
+
 	
 /*
 #if LOG_MFC
@@ -466,4 +539,24 @@ void stabilization_mfc_run(void)
   log_counter += 1;
 
 */
+}
+
+// This function reads rc commands
+void stabilization_mfc_read_rc(bool in_flight, bool in_carefree, bool coordinated_turn)
+{
+  //struct FloatQuat q_sp;
+  struct FloatEulers stab_rc_sp;
+#if USE_EARTH_BOUND_RC_SETPOINT
+  stabilization_attitude_read_rc_setpoint_quat_earth_bound_f(&q_sp, in_flight, in_carefree, coordinated_turn);
+#else
+  //stabilization_attitude_read_rc_setpoint_quat_f(&q_sp, in_flight, in_carefree, coordinated_turn);
+  stabilization_attitude_read_rc_setpoint_eulers_f(&stab_rc_sp, in_flight, in_carefree, coordinated_turn);
+#endif
+
+  //QUAT_BFP_OF_REAL(stab_att_sp_quat, q_sp);
+  //stab_att_sp_euler =ANGLE_BFP_OF_REAL(sp);
+
+  mfc_roll.setpoint  = ANGLE_BFP_OF_REAL(stab_rc_sp.phi);
+  mfc_pitch.setpoint = ANGLE_BFP_OF_REAL(stab_rc_sp.theta);
+  mfc_yaw.setpoint   = ANGLE_BFP_OF_REAL(stab_rc_sp.psi);
 }
