@@ -477,9 +477,9 @@ void float_quat_derivative_lagrange(struct FloatQuat *qd, struct FloatRates *r, 
 void float_quat_of_eulers(struct FloatQuat *q, struct FloatEulers *e)
 {
 
-  const float phi2   = e->phi / 2.0;
-  const float theta2 = e->theta / 2.0;
-  const float psi2   = e->psi / 2.0;
+  const float phi2   = e->phi / 2.f;
+  const float theta2 = e->theta / 2.f;
+  const float psi2   = e->psi / 2.f;
 
   const float s_phi2   = sinf(phi2);
   const float c_phi2   = cosf(phi2);
@@ -503,9 +503,9 @@ void float_quat_of_eulers(struct FloatQuat *q, struct FloatEulers *e)
  */
 void float_quat_of_eulers_zxy(struct FloatQuat *q, struct FloatEulers *e)
 {
-  const float phi2   = e->phi / 2.0;
-  const float theta2 = e->theta / 2.0;
-  const float psi2   = e->psi / 2.0;
+  const float phi2   = e->phi / 2.f;
+  const float theta2 = e->theta / 2.f;
+  const float psi2   = e->psi / 2.f;
 
   const float s_phi2   = sinf(phi2);
   const float c_phi2   = cosf(phi2);
@@ -520,6 +520,33 @@ void float_quat_of_eulers_zxy(struct FloatQuat *q, struct FloatEulers *e)
   q->qz =  s_phi2 * s_theta2 * c_psi2 + c_phi2 * c_theta2 * s_psi2;
 }
 
+/**
+ * @brief quat from euler rotation 'YXZ'
+ * This function calculates a quaternion from Euler angles with the order YXZ,
+ * so pitch, roll, yaw, instead of the conventional ZYX order.
+ * See https://en.wikipedia.org/wiki/Euler_angles
+ *
+ * @param q Quat output
+ * @param e Euler input
+ */
+void float_quat_of_eulers_yxz(struct FloatQuat *q, struct FloatEulers *e)
+{
+  const float phi2   = e->phi / 2.f;
+  const float theta2 = e->theta / 2.f;
+  const float psi2   = e->psi / 2.f;
+
+  const float s_phi2   = sinf(phi2);
+  const float c_phi2   = cosf(phi2);
+  const float s_theta2 = sinf(theta2);
+  const float c_theta2 = cosf(theta2);
+  const float s_psi2   = sinf(psi2);
+  const float c_psi2   = cosf(psi2);
+
+  q->qi =  c_theta2 * c_phi2 * c_psi2 + s_theta2 * s_phi2 * s_psi2;
+  q->qx =  c_theta2 * s_phi2 * c_psi2 + s_theta2 * c_phi2 * s_psi2;
+  q->qy =  s_theta2 * c_phi2 * c_psi2 - c_theta2 * s_phi2 * s_psi2;
+  q->qz =  c_theta2 * c_phi2 * s_psi2 - s_theta2 * s_phi2 * c_psi2;
+}
 
 void float_quat_of_axis_angle(struct FloatQuat *q, const struct FloatVect3 *uv, float angle)
 {
@@ -636,6 +663,38 @@ void float_eulers_of_quat(struct FloatEulers *e, struct FloatQuat *q)
   e->phi = atan2f(dcm12, dcm22);
   e->theta = -asinf(dcm02);
   e->psi = atan2f(dcm01, dcm00);
+}
+
+/**
+ * @brief euler rotation 'YXZ'
+ * This function calculates from a quaternion the Euler angles with the order YXZ,
+ * so pitch, roll, yaw, instead of the conventional ZYX order.
+ * See https://en.wikipedia.org/wiki/Euler_angles
+ *
+ * @param e Euler output
+ * @param q Quat input
+ */
+void float_eulers_of_quat_yxz(struct FloatEulers *e, struct FloatQuat *q)
+{
+  const float qx2  = q->qx * q->qx;
+  const float qy2  = q->qy * q->qy;
+  const float qz2  = q->qz * q->qz;
+  const float qi2  = q->qi * q->qi;
+  const float qiqx = q->qi * q->qx;
+  const float qiqy = q->qi * q->qy;
+  const float qiqz = q->qi * q->qz;
+  const float qxqy = q->qx * q->qy;
+  const float qxqz = q->qx * q->qz;
+  const float qyqz = q->qy * q->qz;
+  const float r11  = 2.f * (qxqz + qiqy);
+  const float r12  = qi2 - qx2 + qy2 + qz2;
+  const float r21  = -2.f * (qyqz - qiqx);
+  const float r31  = 2.f * (qxqy + qiqz);
+  const float r32  = qi2 - qx2 + qy2 - qz2;
+
+  e->theta = atan2f(r11, r12);
+  e->phi = asinf(r21);
+  e->psi = atan2f(r31, r32);
 }
 
 /**
@@ -767,52 +826,136 @@ bool float_mat_inv_4d(float invOut[16], float mat_in[16])
 }
 
 /** Calculate inverse of any n x n matrix (passed as C array) o = mat^-1
-Algorithm verified with Matlab. 
+Algorithm verified with Matlab.
 Thanks to: https://www.quora.com/How-do-I-make-a-C++-program-to-get-the-inverse-of-a-matrix-100-X-100
 */
 void float_mat_invert(float **o, float **mat, int n)
 {
   int i, j, k;
   float t;
-  float a[n][2*n];
+  float a[n][2 * n];
 
   // Append an identity matrix on the right of the original matrix
-  for(i = 0; i < n; i++) {
-    for(j = 0; j < 2*n; j++) {
+  for (i = 0; i < n; i++) {
+    for (j = 0; j < 2 * n; j++) {
       if (j < n) {
         a[i][j] = mat[i][j];
-      }
-      else if( (j >= n) && (j == i+n)) {
+      } else if ((j >= n) && (j == i + n)) {
         a[i][j] = 1.0;
-      }
-      else {
+      } else {
         a[i][j] = 0.0;
       }
-    } 
+    }
   }
 
   // Do the inversion
-  for( i = 0; i < n; i++) {
-    t = a[i][i];     // Store diagonal variable (temp)
+  for (i = 0; i < n; i++) {
+    t = a[i][i]; // Store diagonal variable (temp)
 
-    for(j = i; j < 2*n; j++) {
-      a[i][j] = a[i][j]/t; // Divide by the diagonal value
+    for (j = i; j < 2 * n; j++) {
+      a[i][j] = a[i][j] / t; // Divide by the diagonal value
     }
 
-    for(j = 0; j < n; j++) {
-      if( i!=j ) {
+    for (j = 0; j < n; j++) {
+      if (i != j) {
         t = a[j][i];
-        for(k=0; k<2*n; k++) {
-          a[j][k] = a[j][k] - t*a[i][k];
+        for (k = 0; k < 2 * n; k++) {
+          a[j][k] = a[j][k] - t * a[i][k];
         }
       }
     }
   }
 
   // Cut out the identity, which has now moved to the left side
-  for(i = 0 ; i < n ; i++ ) {
-    for(j = n; j < 2*n; j++ ) {
-      o[i][j-n] = a[i][j];
+  for (i = 0 ; i < n ; i++) {
+    for (j = n; j < 2 * n; j++) {
+      o[i][j - n] = a[i][j];
     }
   }
+}
+
+/*
+ * o[n][n] = e^a[n][n]
+ * Replicates expm(a) in Matlab
+ *
+ * Adapted from the following reference:
+ * Cleve Moler, Charles VanLoan,
+ * Nineteen Dubious Ways to Compute the Exponential of a Matrix,
+ * Twenty-Five Years Later, SIAM Review, Volume 45, Number 1, March 2003, pages 3-49.
+ * https://people.sc.fsu.edu/~jburkardt/c_src/matrix_exponential/matrix_exponential.c
+ */
+void float_mat_exp(float **a, float **o, int n)
+{
+  float a_norm, c, t;
+  const int q = 6;
+  float d[n][n];
+  float x[n][n];
+  float a_copy[n][n];
+  int ee, k, s;
+  int p;
+
+  MAKE_MATRIX_PTR(_a,  a,  n);
+  MAKE_MATRIX_PTR(_o,  o,  n);
+  MAKE_MATRIX_PTR(_d,  d,  n);
+  MAKE_MATRIX_PTR(_x,  x,  n);
+  MAKE_MATRIX_PTR(_a_copy, a_copy, n);
+
+  float_mat_copy(_a_copy, _a, n, n); // Make a copy of a to compute on
+  a_norm = float_mat_norm_li(_a_copy, n, n);  // Compute the infinity norm of the matrix
+  ee = (int)(float_log_n(a_norm, 2)) + 1;
+  s = Max(0, ee + 1);
+  t = 1.0 / powf(2.0, s);
+  float_mat_scale(_a_copy, t, n, n);
+  float_mat_copy(_x, _a_copy, n, n);  // x = a_copy
+  c = 0.5;
+
+  float_mat_diagonal_scal(_o, 1.0, n);  // make identiy
+  float_mat_sum_scaled(_o, _a_copy, c, n, n);
+
+  float_mat_diagonal_scal(_d, 1.0, n);
+  float_mat_sum_scaled(_d, _a_copy, -c, n, n);
+
+  p = 1;
+  for (k = 2; k <= q; k++) {
+    c = c * (float)(q - k + 1) / (float)(k * (2 * q - k + 1));
+    float_mat_mul_copy(_x, _x, _a_copy, n, n, n);
+
+    float_mat_sum_scaled(_o, _x, c, n, n);
+
+    if (p) {
+      float_mat_sum_scaled(_d, _x, c, n, n);
+    } else {
+      float_mat_sum_scaled(_d, _x, -c, n, n);
+    }
+    p = !p;
+  }
+
+  // E -> inverse(D) * E
+  float temp[n][n];
+  MAKE_MATRIX_PTR(_temp, temp, n);
+  float_mat_invert(_temp, _d, n);
+  float_mat_mul_copy(_o, _temp, _o, n, n, n);
+
+  // E -> E^(2*S)
+  for (k = 1; k <= s; k++) {
+    float_mat_mul_copy(_o, _o, _o, n, n, n);
+  }
+
+}
+
+/* Returns L-oo of matrix a */
+float float_mat_norm_li(float **a, int m, int n)
+{
+  float row_sum;
+  float value;
+
+  value = 0.0;
+  for (int i = 0; i < m; i++) {
+    row_sum = 0.0;
+    for (int j = 0; j < n; j++) {
+      row_sum = row_sum + fabsf(a[i][j]);
+    }
+    value = Max(value, row_sum);
+  }
+  return value;
 }

@@ -22,24 +22,21 @@
 
 /** @file modules/loggers/file_logger.c
  *  @brief File logger for Linux based autopilots
- *  This module purpose is for debugging airframest
  */
 
 #include "file_logger.h"
 
 #include <stdio.h>
+#include <sys/stat.h>
+#include <time.h>
 #include "std.h"
 
 #include "subsystems/imu.h"
-
-/* Ugly fix until Fixedwing and rotorcraft are uniofied in a nice way
- * COMMAND_THRUST only and always defined in ROTORCRAFT
- * A gliding Rotorcraft is an ecxeption ;) */
 #ifdef COMMAND_THRUST
 #include "firmwares/rotorcraft/stabilization.h"
 #else
-/* adaptive also an option */
 #include "firmwares/fixedwing/stabilization/stabilization_attitude.h"
+#include "firmwares/fixedwing/stabilization/stabilization_adaptive.h"
 #endif
 
 #include "state.h"
@@ -55,16 +52,32 @@ static FILE *file_logger = NULL;
 /** Start the file logger and open a new file */
 void file_logger_start(void)
 {
+  // check if log path exists
+  struct stat s;
+  int err = stat(STRINGIFY(FILE_LOGGER_PATH), &s);
+
+  if(err < 0) {
+    // try to make the directory
+    mkdir(STRINGIFY(FILE_LOGGER_PATH), 0666);
+  }
+
+  // Get current date/time, format is YYYY-MM-DD.HH:mm:ss
+  char date_time[80];
+  time_t now = time(0);
+  struct tm  tstruct;
+  tstruct = *localtime(&now);
+  strftime(date_time, sizeof(date_time), "%Y-%m-%d_%X", &tstruct);
+
   uint32_t counter = 0;
   char filename[512];
 
   // Check for available files
-  sprintf(filename, "%s/%05d.csv", STRINGIFY(FILE_LOGGER_PATH), counter);
+  sprintf(filename, "%s/%s.csv", STRINGIFY(FILE_LOGGER_PATH), date_time);
   while ((file_logger = fopen(filename, "r"))) {
     fclose(file_logger);
 
+    sprintf(filename, "%s/%s_%05d.csv", STRINGIFY(FILE_LOGGER_PATH), date_time, counter);
     counter++;
-    sprintf(filename, "%s/%05d.csv", STRINGIFY(FILE_LOGGER_PATH), counter);
   }
 
   file_logger = fopen(filename, "w");
@@ -72,11 +85,12 @@ void file_logger_start(void)
   if (file_logger != NULL) {
     fprintf(
       file_logger,
-      /* Add and removed values here as wished to log */
+
+	  //rotorcraft uses COMMAND_THRUST, fixedwing COMMAND_THROTTLE at this time
 #ifdef COMMAND_THRUST
       "counter,gyro_unscaled_p,gyro_unscaled_q,gyro_unscaled_r,accel_unscaled_x,accel_unscaled_y,accel_unscaled_z,mag_unscaled_x,mag_unscaled_y,mag_unscaled_z,COMMAND_THRUST,COMMAND_ROLL,COMMAND_PITCH,COMMAND_YAW,qi,qx,qy,qz\n"
 #else
-	  "counter,gyro_unscaled_p,gyro_unscaled_q,gyro_unscaled_r,accel_unscaled_x,accel_unscaled_y,accel_unscaled_z,mag_unscaled_x,mag_unscaled_y,mag_unscaled_z,qi,qx,qy,qz\n"
+      "counter,gyro_unscaled_p,gyro_unscaled_q,gyro_unscaled_r,accel_unscaled_x,accel_unscaled_y,accel_unscaled_z,mag_unscaled_x,mag_unscaled_y,mag_unscaled_z,	h_ctl_aileron_setpoint, h_ctl_elevator_setpoint, qi,qx,qy,qz\n"
 #endif
     );
   }
@@ -91,7 +105,8 @@ void file_logger_stop(void)
   }
 }
 
-/** Log the values to a CSV file */
+/** Log the values to a csv file    */
+/** Change the Variable that you are interested in here */
 void file_logger_periodic(void)
 {
   if (file_logger == NULL) {
@@ -100,9 +115,8 @@ void file_logger_periodic(void)
   static uint32_t counter;
   struct Int32Quat *quat = stateGetNedToBodyQuat_i();
 
-  /* Add and removed values here as wished to log */
-#ifdef COMMAND_THRUST
-  fprintf(file_logger, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
+#ifdef COMMAND_THRUST //For example rotorcraft
+  fprintf(file_logger, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
           counter,
           imu.gyro_unscaled.p,
           imu.gyro_unscaled.q,
@@ -123,7 +137,7 @@ void file_logger_periodic(void)
           quat->qz
          );
 #else
-  fprintf(file_logger, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
+  fprintf(file_logger, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
           counter,
           imu.gyro_unscaled.p,
           imu.gyro_unscaled.q,
@@ -134,24 +148,14 @@ void file_logger_periodic(void)
           imu.mag_unscaled.x,
           imu.mag_unscaled.y,
           imu.mag_unscaled.z,
-          /* imu.gyro_scaled.p,
-          imu.gyro_scaled.q,
-          imu.gyro_scaled.r,
-          imu.accel_scaled.x,
-          imu.accel_scaled.y,
-          imu.accel_scaled.z,
-          imu.mag_scaled.x,
-          imu.mag_scaled.y,
-          imu.mag_scaled.z, */
-          //stabilization_cmd[COMMAND_THROTTLE],
-          //stabilization_cmd[COMMAND_ROLL],
-          //stabilization_cmd[COMMAND_PITCH],
-          ////stabilization_cmd[COMMAND_PITCH], //for time being...
+		  h_ctl_aileron_setpoint,
+		  h_ctl_elevator_setpoint,
           quat->qi,
           quat->qx,
           quat->qy,
           quat->qz
          );
 #endif
+
   counter++;
 }

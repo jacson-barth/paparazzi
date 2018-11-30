@@ -41,12 +41,15 @@
 #include "lib/vision/fast_rosten.h"
 #include "lib/vision/act_fast.h"
 #include "lib/vision/edge_flow.h"
+#include "lib/vision/undistortion.h"
 #include "size_divergence.h"
 #include "linear_flow_fit.h"
 #include "modules/sonar/agl_dist.h"
 
+// to get the definition of front_camera / bottom_camera
+#include BOARD_CONFIG
+
 // whether to show the flow and corners:
-#define OPTICFLOW_SHOW_FLOW 0
 #define OPTICFLOW_SHOW_CORNERS 0
 
 #define EXHAUSTIVE_FAST 0
@@ -63,33 +66,9 @@ uint16_t n_agents = 25;
 #define LINEAR_FIT 1
 
 #ifndef OPTICFLOW_CORNER_METHOD
-// This can be estimated by total possible image height / total Field of view
 #define OPTICFLOW_CORNER_METHOD ACT_FAST
 #endif
 PRINT_CONFIG_VAR(OPTICFLOW_CORNER_METHOD)
-
-// Camera parameters (defaults are from an ARDrone 2)
-#ifndef OPTICFLOW_FOV_W
-#define OPTICFLOW_FOV_W 0.89360857702
-#endif
-PRINT_CONFIG_VAR(OPTICFLOW_FOV_W)
-
-#ifndef OPTICFLOW_FOV_H
-#define OPTICFLOW_FOV_H 0.67020643276
-#endif
-PRINT_CONFIG_VAR(OPTICFLOW_FOV_H)
-
-#ifndef OPTICFLOW_FX
-// This can be estimated by total possible image width / total Field of view
-#define OPTICFLOW_FX 343.1211
-#endif
-PRINT_CONFIG_VAR(OPTICFLOW_FX)
-
-#ifndef OPTICFLOW_FY
-// This can be estimated by total possible image height / total Field of view
-#define OPTICFLOW_FY 348.5053
-#endif
-PRINT_CONFIG_VAR(OPTICFLOW_FY)
 
 /* Set the default values */
 #ifndef OPTICFLOW_MAX_TRACK_CORNERS
@@ -231,6 +210,22 @@ PRINT_CONFIG_VAR(OPTICFLOW_ACTFAST_MIN_GRADIENT)
 #define OPTICFLOW_BODY_TO_CAM_PSI -M_PI_2
 #endif
 
+// Tracking back flow to make the accepted flow vectors more robust:
+// Default is false, as it does take extra processing time
+#ifndef OPTICFLOW_TRACK_BACK
+#define OPTICFLOW_TRACK_BACK FALSE
+#endif
+PRINT_CONFIG_VAR(OPTICFLOW_TRACK_BACK)
+
+// Whether to draw the flow on the image:
+// False by default, since it changes the image and costs time.
+#ifndef OPTICFLOW_SHOW_FLOW
+#define OPTICFLOW_SHOW_FLOW FALSE
+#endif
+PRINT_CONFIG_VAR(OPTICFLOW_SHOW_FLOW)
+
+
+
 //Include median filter
 #include "filters/median_filter.h"
 struct MedianFilter3Float vel_filt;
@@ -243,6 +238,8 @@ static int cmp_array(const void *a, const void *b);
 static void manage_flow_features(struct image_t *img, struct opticflow_t *opticflow,
                                  struct opticflow_result_t *result);
 
+static struct flow_t *predict_flow_vectors(struct flow_t *flow_vectors, uint16_t n_points, float phi_diff,
+    float theta_diff, float psi_diff, struct opticflow_t *opticflow);
 /**
  * Initialize the opticflow calculator
  * @param[out] *opticflow The new optical flow calculator
@@ -256,7 +253,8 @@ void opticflow_calc_init(struct opticflow_t *opticflow)
   opticflow->derotation = OPTICFLOW_DEROTATION; //0 = OFF, 1 = ON
   opticflow->derotation_correction_factor_x = OPTICFLOW_DEROTATION_CORRECTION_FACTOR_X;
   opticflow->derotation_correction_factor_y = OPTICFLOW_DEROTATION_CORRECTION_FACTOR_Y;
-
+  opticflow->track_back = OPTICFLOW_TRACK_BACK;
+  opticflow->show_flow = OPTICFLOW_SHOW_FLOW;
   opticflow->max_track_corners = OPTICFLOW_MAX_TRACK_CORNERS;
   opticflow->subpixel_factor = OPTICFLOW_SUBPIXEL_FACTOR;
   if (opticflow->subpixel_factor == 0) {
@@ -286,6 +284,7 @@ void opticflow_calc_init(struct opticflow_t *opticflow)
 
   struct FloatEulers euler = {OPTICFLOW_BODY_TO_CAM_PHI, OPTICFLOW_BODY_TO_CAM_THETA, OPTICFLOW_BODY_TO_CAM_PSI};
   float_rmat_of_eulers(&body_to_cam, &euler);
+
 }
 /**
  * Run the optical flow with fast9 and lukaskanade on a new image frame
@@ -312,11 +311,7 @@ bool calc_fast9_lukas_kanade(struct opticflow_t *opticflow, struct image_t *img,
 
   // Convert image to grayscale
   image_to_grayscale(img, &opticflow->img_gray);
-  opticflow->img_gray.ts = img->ts;
-  opticflow->img_gray.pprz_ts = img->pprz_ts;
-  opticflow->img_gray.eulers = img->eulers;
 
-  // Copy to previous image if not set
   if (!opticflow->got_first_img) {
     image_copy(&opticflow->img_gray, &opticflow->prev_img_gray);
     opticflow->got_first_img = true;
@@ -329,9 +324,9 @@ bool calc_fast9_lukas_kanade(struct opticflow_t *opticflow, struct image_t *img,
   struct linear_flow_fit_info fit_info;
 
   // Update FPS for information
-  float dt = timeval_diff(&(opticflow->prev_img_gray.ts), &(img->ts)) / 1000.f;
+  float dt = timeval_diff(&(opticflow->prev_img_gray.ts), &(img->ts));
   if (dt > 1e-5) {
-    result->fps = 1 / dt;
+    result->fps = 1000.f / dt;
   } else {
     return false;
   }
@@ -413,14 +408,60 @@ bool calc_fast9_lukas_kanade(struct opticflow_t *opticflow, struct image_t *img,
 
   // Execute a Lucas Kanade optical flow
   result->tracked_cnt = result->corner_cnt;
+  uint8_t keep_bad_points = 0;
   struct flow_t *vectors = opticFlowLK(&opticflow->img_gray, &opticflow->prev_img_gray, opticflow->fast9_ret_corners,
                                        &result->tracked_cnt,
                                        opticflow->window_size / 2, opticflow->subpixel_factor, opticflow->max_iterations,
-                                       opticflow->threshold_vec, opticflow->max_track_corners, opticflow->pyramid_level);
+                                       opticflow->threshold_vec, opticflow->max_track_corners, opticflow->pyramid_level, keep_bad_points);
 
-#if OPTICFLOW_SHOW_FLOW
-  image_show_flow(img, vectors, result->tracked_cnt, opticflow->subpixel_factor);
-#endif
+
+  if (opticflow->track_back) {
+    // TODO: Watch out!
+    // We track the flow back and give badly back-tracked vectors a high error,
+    // but we do not yet remove these vectors, nor use the errors in any other function than showing the flow.
+
+    // initialize corners at the tracked positions:
+    for (int i = 0; i < result->tracked_cnt; i++) {
+      opticflow->fast9_ret_corners[i].x = (uint32_t)(vectors[i].pos.x + vectors[i].flow_x) / opticflow->subpixel_factor;
+      opticflow->fast9_ret_corners[i].y = (uint32_t)(vectors[i].pos.y + vectors[i].flow_y) / opticflow->subpixel_factor;
+    }
+
+    // present the images in the opposite order:
+    keep_bad_points = 1;
+    uint16_t back_track_cnt = result->tracked_cnt;
+    struct flow_t *back_vectors = opticFlowLK(&opticflow->prev_img_gray, &opticflow->img_gray, opticflow->fast9_ret_corners,
+                                  &back_track_cnt,
+                                  opticflow->window_size / 2, opticflow->subpixel_factor, opticflow->max_iterations,
+                                  opticflow->threshold_vec, opticflow->max_track_corners, opticflow->pyramid_level, keep_bad_points);
+
+    // printf("Tracked %d points back.\n", back_track_cnt);
+    int32_t back_x, back_y, diff_x, diff_y, dist_squared;
+    int32_t back_track_threshold = 200;
+
+    for (int i = 0; i < result->tracked_cnt; i++) {
+      if (back_vectors[i].error < LARGE_FLOW_ERROR) {
+        back_x = (int32_t)(back_vectors[i].pos.x + back_vectors[i].flow_x);
+        back_y = (int32_t)(back_vectors[i].pos.y + back_vectors[i].flow_y);
+        diff_x = back_x - vectors[i].pos.x;
+        diff_y = back_y - vectors[i].pos.y;
+        dist_squared = diff_x * diff_x + diff_y * diff_y;
+        // printf("Vector %d: x,y = %d, %d, back x, y = %d, %d, back tracking error %d\n", i, vectors[i].pos.x, vectors[i].pos.y, back_x, back_y, dist_squared);
+        if (dist_squared > back_track_threshold) {
+          vectors[i].error = LARGE_FLOW_ERROR;
+        }
+      } else {
+        vectors[i].error = LARGE_FLOW_ERROR;
+      }
+    }
+
+    free(back_vectors);
+  }
+
+  if (opticflow->show_flow) {
+    uint8_t color[4] = {0, 0, 0, 0};
+    uint8_t bad_color[4] = {0, 0, 0, 0};
+    image_show_flow_color(img, vectors, result->tracked_cnt, opticflow->subpixel_factor, color, bad_color);
+  }
 
   static int n_samples = 100;
   // Estimate size divergence:
@@ -472,37 +513,80 @@ bool calc_fast9_lukas_kanade(struct opticflow_t *opticflow, struct image_t *img,
 
   // TODO scale flow to rad/s here
 
+  // ***************
   // Flow Derotation
+  // ***************
+
   float diff_flow_x = 0.f;
   float diff_flow_y = 0.f;
 
   if (opticflow->derotation && result->tracked_cnt > 5) {
-    diff_flow_x = (opticflow->img_gray.eulers.phi - opticflow->prev_img_gray.eulers.phi) * OPTICFLOW_FX;
-    diff_flow_y = (opticflow->img_gray.eulers.theta - opticflow->prev_img_gray.eulers.theta) * OPTICFLOW_FY;
-    /*diff_flow_x = (cam_state->rates.p)  / result->fps * img->w /
-                  OPTICFLOW_FOV_W;// * img->w / OPTICFLOW_FOV_W;
-    diff_flow_y = (cam_state->rates.q) / result->fps * img->h /
-                  OPTICFLOW_FOV_H;// * img->h / OPTICFLOW_FOV_H;*/
-  }
 
-  float rotation_threshold = M_PI / 180.0f;
-  if (fabs(opticflow->img_gray.eulers.phi - opticflow->prev_img_gray.eulers.phi) > rotation_threshold) {
-    result->flow_der_x = 0.0f;
-    result->flow_der_y = 0.0f;
-  } else {
-    result->flow_der_x = result->flow_x - diff_flow_x * opticflow->subpixel_factor *
-                         opticflow->derotation_correction_factor_x;
-    result->flow_der_y = result->flow_y - diff_flow_y * opticflow->subpixel_factor *
-                         opticflow->derotation_correction_factor_y;
+    float rotation_threshold = M_PI / 180.0f;
+    if (fabs(opticflow->img_gray.eulers.phi - opticflow->prev_img_gray.eulers.phi) > rotation_threshold
+        || fabs(opticflow->img_gray.eulers.theta - opticflow->prev_img_gray.eulers.theta) > rotation_threshold) {
+
+      // do not apply the derotation if the rotation rates are too high:
+      result->flow_der_x = 0.0f;
+      result->flow_der_y = 0.0f;
+
+    } else {
+
+      // determine the roll, pitch, yaw differencces between the images.
+      float phi_diff = opticflow->img_gray.eulers.phi - opticflow->prev_img_gray.eulers.phi;
+      float theta_diff = opticflow->img_gray.eulers.theta - opticflow->prev_img_gray.eulers.theta;
+      float psi_diff = opticflow->img_gray.eulers.psi - opticflow->prev_img_gray.eulers.psi;
+
+      if (strcmp(OPTICFLOW_CAMERA.dev_name, "/dev/video0") == 0) {
+
+        // bottom cam: just subtract a scaled version of the roll and pitch difference from the global flow vector:
+        diff_flow_x = phi_diff * OPTICFLOW_CAMERA.camera_intrinsics.focal_x; // phi_diff works better than (cam_state->rates.p)
+        diff_flow_y = theta_diff * OPTICFLOW_CAMERA.camera_intrinsics.focal_y;
+        result->flow_der_x = result->flow_x - diff_flow_x * opticflow->subpixel_factor *
+                             opticflow->derotation_correction_factor_x;
+        result->flow_der_y = result->flow_y - diff_flow_y * opticflow->subpixel_factor *
+                             opticflow->derotation_correction_factor_y;
+      } else {
+
+        // frontal cam, predict individual flow vectors:
+        struct flow_t *predicted_flow_vectors = predict_flow_vectors(vectors, result->tracked_cnt, phi_diff, theta_diff,
+                                                psi_diff, opticflow);
+        if (opticflow->show_flow) {
+          uint8_t color[4] = {255, 255, 255, 255};
+          uint8_t bad_color[4] = {255, 255, 255, 255};
+          image_show_flow_color(img, predicted_flow_vectors, result->tracked_cnt, opticflow->subpixel_factor, color, bad_color);
+        }
+
+        for (int i = 0; i < result->tracked_cnt; i++) {
+          // subtract the flow:
+          vectors[i].flow_x -= predicted_flow_vectors[i].flow_x;
+          vectors[i].flow_y -= predicted_flow_vectors[i].flow_y;
+        }
+
+        // vectors have to be re-sorted after derotation:
+        qsort(vectors, result->tracked_cnt, sizeof(struct flow_t), cmp_flow);
+
+        if (result->tracked_cnt % 2) {
+          // Take the median point
+          result->flow_der_x = vectors[result->tracked_cnt / 2].flow_x;
+          result->flow_der_y = vectors[result->tracked_cnt / 2].flow_y;
+        } else {
+          // Take the average of the 2 median points
+          result->flow_der_x = (vectors[result->tracked_cnt / 2 - 1].flow_x + vectors[result->tracked_cnt / 2].flow_x) / 2.f;
+          result->flow_der_y = (vectors[result->tracked_cnt / 2 - 1].flow_y + vectors[result->tracked_cnt / 2].flow_y) / 2.f;
+        }
+      }
+    }
   }
 
   // Velocity calculation
   // Right now this formula is under assumption that the flow only exist in the center axis of the camera.
-  // TODO Calculate the velocity more sophisticated, taking into account the drone's angle and the slope of the ground plane.
+  // TODO: Calculate the velocity more sophisticated, taking into account the drone's angle and the slope of the ground plane.
+  // TODO: This is actually only correct for the bottom camera:
   result->vel_cam.x = (float)result->flow_der_x * result->fps * agl_dist_value_filtered /
-                      (opticflow->subpixel_factor * OPTICFLOW_FX);
+                      (opticflow->subpixel_factor * OPTICFLOW_CAMERA.camera_intrinsics.focal_x);
   result->vel_cam.y = (float)result->flow_der_y * result->fps * agl_dist_value_filtered /
-                      (opticflow->subpixel_factor * OPTICFLOW_FY);
+                      (opticflow->subpixel_factor * OPTICFLOW_CAMERA.camera_intrinsics.focal_y);
   result->vel_cam.z = result->divergence * result->fps * agl_dist_value_filtered;
 
   //Apply a  median filter to the velocity if wanted
@@ -536,6 +620,75 @@ bool calc_fast9_lukas_kanade(struct opticflow_t *opticflow, struct image_t *img,
 
   return true;
 }
+
+/*
+ * Predict flow vectors by means of the rotation rates:
+ */
+static struct flow_t *predict_flow_vectors(struct flow_t *flow_vectors, uint16_t n_points, float phi_diff,
+    float theta_diff, float psi_diff, struct opticflow_t *opticflow)
+{
+
+  // reserve memory for the predicted flow vectors:
+  struct flow_t *predicted_flow_vectors = malloc(sizeof(struct flow_t) * n_points);
+
+  float K[9] = {OPTICFLOW_CAMERA.camera_intrinsics.focal_x, 0.0f, OPTICFLOW_CAMERA.camera_intrinsics.center_x,
+                0.0f, OPTICFLOW_CAMERA.camera_intrinsics.focal_y, OPTICFLOW_CAMERA.camera_intrinsics.center_y,
+                0.0f, 0.0f, 1.0f
+               };
+  // TODO: make an option to not do distortion / undistortion (Dhane_k = 1)
+  float k = OPTICFLOW_CAMERA.camera_intrinsics.Dhane_k;
+
+  float A, B, C; // as in Longuet-Higgins
+
+  if (strcmp(OPTICFLOW_CAMERA.dev_name, "/dev/video1") == 0) {
+    // specific for the x,y swapped Bebop 2 images:
+    A = -psi_diff;
+    B = theta_diff;
+    C = phi_diff;
+  } else {
+    A = theta_diff;
+    B = phi_diff;
+    C = psi_diff;
+  }
+
+  float x_n, y_n;
+  float x_n_new, y_n_new, x_pix_new, y_pix_new;
+  float predicted_flow_x, predicted_flow_y;
+  for (uint16_t i = 0; i < n_points; i++) {
+    // the from-coordinate is always the same:
+    predicted_flow_vectors[i].pos.x = flow_vectors[i].pos.x;
+    predicted_flow_vectors[i].pos.y = flow_vectors[i].pos.y;
+
+    bool success = distorted_pixels_to_normalized_coords((float)flow_vectors[i].pos.x / opticflow->subpixel_factor,
+                   (float)flow_vectors[i].pos.y / opticflow->subpixel_factor, &x_n, &y_n, k, K);
+    if (success) {
+      // predict flow as in a linear pinhole camera model:
+      predicted_flow_x = A * x_n * y_n - B * x_n * x_n - B + C * y_n;
+      predicted_flow_y = -C * x_n + A + A * y_n * y_n - B * x_n * y_n;
+
+      x_n_new = x_n + predicted_flow_x;
+      y_n_new = y_n + predicted_flow_y;
+
+      success = normalized_coords_to_distorted_pixels(x_n_new, y_n_new, &x_pix_new, &y_pix_new, k, K);
+
+      if (success) {
+        predicted_flow_vectors[i].flow_x = (int16_t)(x_pix_new * opticflow->subpixel_factor - (float)flow_vectors[i].pos.x);
+        predicted_flow_vectors[i].flow_y = (int16_t)(y_pix_new * opticflow->subpixel_factor - (float)flow_vectors[i].pos.y);
+        predicted_flow_vectors[i].error = 0;
+      } else {
+        predicted_flow_vectors[i].flow_x = 0;
+        predicted_flow_vectors[i].flow_y = 0;
+        predicted_flow_vectors[i].error = LARGE_FLOW_ERROR;
+      }
+    } else {
+      predicted_flow_vectors[i].flow_x = 0;
+      predicted_flow_vectors[i].flow_y = 0;
+      predicted_flow_vectors[i].error = LARGE_FLOW_ERROR;
+    }
+  }
+  return predicted_flow_vectors;
+}
+
 
 /* manage_flow_features - Update list of corners to be tracked by LK
  * Remembers previous points and tries to find new points in less dense
@@ -590,7 +743,7 @@ static void manage_flow_features(struct image_t *img, struct opticflow_t *opticf
     int region_index;
     for (uint16_t i = 0; i < result->corner_cnt; i++) {
       region_index = (opticflow->fast9_ret_corners[i].x * root_regions / img->w
-               + root_regions * (opticflow->fast9_ret_corners[i].y * root_regions / img->h));
+                      + root_regions * (opticflow->fast9_ret_corners[i].y * root_regions / img->h));
       region_index = (region_index < opticflow->fast9_num_regions) ? region_index : opticflow->fast9_num_regions - 1;
       region_count[region_index][0]++;
     }
@@ -725,9 +878,9 @@ bool calc_edgeflow_tot(struct opticflow_t *opticflow, struct image_t *img,
 
   if (opticflow->derotation) {
     der_shift_x = (int16_t)((edge_hist[current_frame_nr].eulers.phi - edge_hist[previous_frame_nr[0]].eulers.phi) *
-                            OPTICFLOW_FX * opticflow->derotation_correction_factor_x);
+                            OPTICFLOW_CAMERA.camera_intrinsics.focal_x * opticflow->derotation_correction_factor_x);
     der_shift_y = (int16_t)((edge_hist[current_frame_nr].eulers.theta - edge_hist[previous_frame_nr[1]].eulers.theta) *
-                            OPTICFLOW_FY * opticflow->derotation_correction_factor_y);
+                            OPTICFLOW_CAMERA.camera_intrinsics.focal_y * opticflow->derotation_correction_factor_y);
   }
 
   // Estimate pixel wise displacement of the edge histograms for x and y direction
@@ -792,8 +945,10 @@ bool calc_edgeflow_tot(struct opticflow_t *opticflow, struct image_t *img,
   // TODO scale flow to rad/s here
 
   // Calculate velocity
-  result->vel_cam.x = edgeflow.flow_x * fps_x * agl_dist_value_filtered * OPTICFLOW_FX / RES;
-  result->vel_cam.y = edgeflow.flow_y * fps_y * agl_dist_value_filtered * OPTICFLOW_FY / RES;
+  result->vel_cam.x = edgeflow.flow_x * fps_x * agl_dist_value_filtered * OPTICFLOW_CAMERA.camera_intrinsics.focal_x /
+                      RES;
+  result->vel_cam.y = edgeflow.flow_y * fps_y * agl_dist_value_filtered * OPTICFLOW_CAMERA.camera_intrinsics.focal_y /
+                      RES;
   result->vel_cam.z = result->divergence * fps_x * agl_dist_value_filtered;
 
   //Apply a  median filter to the velocity if wanted
@@ -895,7 +1050,7 @@ static int cmp_flow(const void *a, const void *b)
  */
 static int cmp_array(const void *a, const void *b)
 {
-  uint16_t *pa = *(uint16_t **)a;
-  uint16_t *pb = *(uint16_t **)b;
+  const uint16_t *pa = (const uint16_t *)a;
+  const uint16_t *pb = (const uint16_t *)b;
   return pa[0] - pb[0];
 }

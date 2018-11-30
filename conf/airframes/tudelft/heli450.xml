@@ -20,15 +20,14 @@
     <module name="stabilization" type="rate"/>
     <module name="ahrs"          type="int_cmpl_quat"/>
     <module name="ins"           type="hff"/>
-  </firmware>
 
-  <modules>
+
     <module name="geo_mag"/>
     <module name="air_data"/>
     <module name="gps" type="ubx_ucenter"/>
     <module name="heli_swashplate_mixing"/>
     <module name="heli_throttle_curve"/>
-  </modules>
+  </firmware>
 
   <servos driver="Pwm">
     <servo name="THROTTLE"   no="0" min="1000" neutral="1000" max="2000"/>
@@ -63,7 +62,6 @@
   </section>
 
   <command_laws>
-    <call fun="throttle_curve_run(autopilot_get_motors_on(), values)"/>
     <call fun="swashplate_mixing_run(values)"/>
     <set servo="THROTTLE"    value="throttle_curve.throttle"/>
     <set servo="BACK"        value="swashplate_mixing.commands[SW_BACK]"/>

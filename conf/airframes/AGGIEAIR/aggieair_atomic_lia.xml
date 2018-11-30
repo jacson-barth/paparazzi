@@ -12,7 +12,7 @@ AggieAir Atomic Tangerine
       </module>
       <configure name="HAS_LUFTBOOT" value="1"/>
       <configure name="FLASH_MODE" value="DFU"/>
-      <module name="telemetry"   type="transparent_gec">
+      <module name="telemetry"   type="transparent">
         <configure name="MODEM_PORT"        value="UART3"/>
         <configure name="MODEM_BAUD"        value="B57600"/>
         <define name="GEC_STATUS_LED" value="5"/>
@@ -29,14 +29,14 @@ AggieAir Atomic Tangerine
     <target name="nps" board="pc">
       <module name="fdm" type="jsbsim"/>
       <module name="radio_control" type="spektrum"/>
-      <module name="telemetry"   type="transparent_gec"/>
+      <module name="telemetry"   type="transparent"/>
     </target>
 
     <target name="hitl" board="pc">
       <module name="fdm" type="jsbsim"/>
       <module name="radio_control" type="spektrum"/>
       <configure name="INS_DEV" value="/dev/ttyUSB1"/>
-      <configure name="INS_BAUD" value="B921600"/>
+      <configure name="INS_BAUD" value="B230400"/>
       <configure name="AP_DEV" value="/dev/ttyUSB2"/>
       <configure name="AP_BAUD" value="B921600"/>
       <module name="telemetry"   type="transparent"/>
@@ -47,23 +47,23 @@ AggieAir Atomic Tangerine
 
     <module name="ins"       type="vectornav">
       <configure name="VN_PORT" value="UART2"/>
-      <configure name="VN_BAUD" value="B921600"/>
+      <configure name="VN_BAUD" value="B230400"/>
     </module>
 
     <define name="AGR_CLIMB" />
     <define name="POLY_OSAM_HALF_SWEEP_ENABLED" value="FALSE"/>
     <define name="GEOFENCE_DATALINK_LOST_TIME" value="45"/>
-  </firmware>
 
-  <modules>
     <module name="nav" type="line"/>
     <module name="nav" type="flower"/>
     <module name="nav" type="survey_poly_osam"/>
     <module name="nav" type="launcher"/>
     <module name="nav" type="skid_landing"/>
-
+    <module name="nav" type="line_osam"/>
     <module name="sys_mon"/>
-    <module name="copilot"/>
+    <module name="copilot">
+      <define name="FORWARD_PAYLOAD" value="TRUE"/>
+    </module>
     <module name="extra_dl">
       <!-- in order to use uart1 without chibios we need to remap the peripheral-->
       <define name="REMAP_UART1" value="TRUE"/>
@@ -80,7 +80,9 @@ AggieAir Atomic Tangerine
       <define name="BATMON_TEMP_OFFSET" value="250"/>
       <define name="BATMON_TEMP_SENSITIVITY" value="10"/>
     </module>
-  </modules>
+    <module name="air_data"/>
+
+  </firmware>
 
   <!-- commands section -->
   <!-- Servo Configuration -->
@@ -88,12 +90,12 @@ AggieAir Atomic Tangerine
     <servo name="THROTTLE"	no="5" min="1100" neutral="1100" max="1900"/>
     <servo name="AILERON_RIGHT" no="1" min="900" neutral="1500" max="2100"/>
     <servo name="AILERON_LEFT"	no="2" min="2100" neutral="1500" max="900"/>
-    <servo name="ELEVATOR"      no="3" min="975" neutral="1500" max="2100"/>
+    <servo name="ELEVATOR"      no="3" min="1900" neutral="1500" max="1100"/>
     <servo name="RUDDER"        no="4" min="2100" neutral="1500" max="900"/>
     <servo name="FLAP"		no="0" min="990" neutral="1945" max="1945"/>
   </servos>
 
-  <!-- Servo Command Structure -->
+  <!-- Servo Command Structure  -->
   <commands>
     <axis name="THROTTLE"   failsafe_value="0"/>
     <axis name="ROLL"       failsafe_value="0"/>
@@ -159,24 +161,25 @@ AggieAir Atomic Tangerine
   </section>
 
 
-  <!-- Define current estimator and Battery Level Warnings -->
+  <!-- Define current estimator and Battery Level Warnings  -->
   <section name="BAT">
     <define name="MILLIAMP_AT_FULL_THROTTLE" value="50000"/>
     <define name="CURRENT_ESTIMATION_NONLINEARITY" value="1.3"/>
 
     <!-- Flight values -->
-    <!--
-    <define name="MAX_BAT_LEVEL" value="16.5" unit="V" />
-    <define name="LOW_BAT_LEVEL" value="14.1" unit="V"/>
-    <define name="CRITIC_BAT_LEVEL" value="13.8" unit="V"/>
-    <define name="CATASTROPHIC_BAT_LEVEL" value="13.5" unit="V"/>
-    -->
+
+    <define name="MAX_BAT_LEVEL" value="16.8" unit="V" />
+    <define name="LOW_BAT_LEVEL" value="14.5" unit="V"/>
+    <define name="CRITIC_BAT_LEVEL" value="14.3" unit="V"/>
+    <define name="CATASTROPHIC_BAT_LEVEL" value="14.1" unit="V"/>
 
     <!-- Simulator values -->
+<!--
     <define name="MAX_BAT_LEVEL" value="5.0" unit="V" />
     <define name="LOW_BAT_LEVEL" value="4.0" unit="V"/>
     <define name="CRITIC_BAT_LEVEL" value="3.5" unit="V"/>
     <define name="CATASTROPHIC_BAT_LEVEL" value="3.0" unit="V"/>
+-->
   </section>
 
   <section name="MISC">
@@ -195,7 +198,7 @@ AggieAir Atomic Tangerine
     <define name="ALTITUDE_MAX_CLIMB" value="3."/>
 
     <!-- auto throttle inner loop -->
-    <define name="AUTO_THROTTLE_NOMINAL_CRUISE_THROTTLE" value="0.40"/>
+    <define name="AUTO_THROTTLE_NOMINAL_CRUISE_THROTTLE" value="0.42"/>
     <define name="AUTO_THROTTLE_MIN_CRUISE_THROTTLE" value="0.20"/>
     <define name="AUTO_THROTTLE_MAX_CRUISE_THROTTLE" value="0.70"/>
     <define name="AUTO_THROTTLE_LOITER_TRIM" value="1500"/>
@@ -228,7 +231,7 @@ AggieAir Atomic Tangerine
   <section name="HORIZONTAL CONTROL" prefix="H_CTL_">
     <define name="COURSE_PGAIN" value="1.135"/>
     <define name="COURSE_DGAIN" value="0.35"/>
-    <define name="ROLL_MAX_SETPOINT" value="0.5" unit="rad"/>
+    <define name="ROLL_MAX_SETPOINT" value="0.6" unit="rad"/>
     <define name="PITCH_MAX_SETPOINT" value="0.35" unit="rad"/>
     <define name="PITCH_MIN_SETPOINT" value="-0.2" unit="rad"/>
     <define name="PITCH_PGAIN" value="12900."/>
@@ -247,7 +250,7 @@ AggieAir Atomic Tangerine
   <section name="AGGRESSIVE" prefix="AGR_">
     <define name="BLEND_START" value="20"/><!-- Altitude Error to Initiate Aggressive Climb CANNOT BE ZERO!!-->
     <define name="BLEND_END" value="10"/><!-- Altitude Error to Blend Aggressive to Regular Climb Modes  CANNOT BE ZERO!!-->
-    <define name="CLIMB_THROTTLE" value="0.75"/><!-- Gaz for Aggressive Climb -->
+    <define name="CLIMB_THROTTLE" value="0.85"/><!-- Gaz for Aggressive Climb -->
     <define name="CLIMB_PITCH" value="0.13"/><!-- Pitch for Aggressive Climb -->
     <define name="DESCENT_THROTTLE" value="0.1"/><!-- Gaz for Aggressive Decent -->
     <define name="DESCENT_PITCH" value="-0.1"/><!-- Pitch for Aggressive Decent -->
@@ -267,9 +270,13 @@ AggieAir Atomic Tangerine
   <section name="LAUNCHER" prefix="LAUNCHER_TAKEOFF_">
     <define name="PITCH" value="0.23" unit="rad"/>
     <define name="HEIGHT" value="70" unit="m"/>
+    <define name="HEIGHT_THRESHOLD" value="10" unit="m"/>
     <define name="MIN_SPEED_CIRCLE" value="8" unit="m/s"/>
     <define name="DISTANCE" value="30" unit="m"/>
     <define name="MIN_SPEED_LINE" value="5" unit="m/s"/>
+    <define name="CIRCLE_ALT" value="100" unit="m"/>
+    <define name="CIRCLE_RADIUS" value="200" unit="m"/>
+    <define name="MAX_CIRCLE_DISTANCE" value="800" unit="m"/>
   </section>
 
   <!-- Skid Landing Configuration -->

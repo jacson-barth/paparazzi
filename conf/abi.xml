@@ -116,6 +116,9 @@
       <field name="vx" type="float" unit="m/s"/>
       <field name="vy" type="float" unit="m/s"/>
       <field name="h" type="float" unit="m"/>
+      <field name="ax" type="float" unit="m/s^2"/>
+      <field name="ay" type="float" unit="m/s^2"/>
+      <field name="yawr" type="float" unit="deg/s"/>
     </message>
 
     <message name="RANGE_FORCEFIELD" id="20">
@@ -154,6 +157,38 @@
     <message name="ACCEL_SP" id="23">
       <field name="flag" type="uint8_t">0: 2D accel setpoint, 1: 3D accel setpoint</field>
       <field name="accel_sp" type="struct FloatVect3 *" unit="m/s^2"/>
+    </message>
+
+    <message name="RELATIVE_LOCALIZATION" id="24">
+      <field name="id" type="int32_t"/>
+      <field name="x" type="float" unit="m"/>
+      <field name="y" type="float" unit="m"/>
+      <field name="z" type="float" unit="m"/>
+      <field name="vx" type="float" unit="m/s"/>
+      <field name="vy" type="float" unit="m/s"/>
+      <field name="vz" type="float" unit="m/s"/>
+    </message>
+
+    <message name="INCIDENCE" id="25">
+      <field name="flag" type="uint8_t">bit 1: AoA is updated, bit 2: sideslip is updated</field>
+      <field name="aoa" type="float" unit="rad">Angle of attack</field>
+      <field name="sideslip" type="float" unit="rad">Sideslip angle</field>
+    </message>
+
+    <message name="MANUAL_SETPOINT" id="26">
+      <field name="thrust" type="float">Radio-Control Manual Thrust Setpoint</field>
+      <field name="roll"   type="float">Radio-Control Manual Roll Setpoint</field>
+      <field name="pitch"  type="float">Radio-Control Manual Pitch Setpoint</field>
+      <field name="yaw"    type="float">Radio-Control Manual Yaw Setpoint</field>
+    </message>
+
+    <message name="VISUAL_DETECTION" id="27">
+      <field name="pixel_x"      type="int16_t">Center pixel X</field>
+      <field name="pixel_y"      type="int16_t">Center pixel Y</field>
+      <field name="pixel_width"  type="int16_t">Width in pixels</field>
+      <field name="pixel_height" type="int16_t">Height in pixels</field>
+      <field name="quality"      type="int16_t">Detection quality</field>
+      <field name="extra"        type="int16_t">Extra field for options like detector source etc</field>
     </message>
 
   </msg_class>

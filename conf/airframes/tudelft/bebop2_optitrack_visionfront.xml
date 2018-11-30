@@ -31,9 +31,8 @@
     <define name="MT9F002_OUTPUT_SCALER" value="0.25"/>
     <define name="MT9F002_X_ODD_INC_VAL" value="1"/>
     <define name="MT9F002_Y_ODD_INC_VAL" value="1"/>
-  </firmware>
 
-  <modules main_freq="512">
+
     <module name="geo_mag"/>
     <module name="air_data"/>
     <module name="send_imu_mag_current"/>
@@ -56,14 +55,12 @@
     <module name="cv_opticflow">
       <define name="OPTICFLOW_CAMERA" value="front_camera"/>
       <define name="MAX_HORIZON" value="10"/>
-      <define name="OPTICFLOW_FX" value="347.22222222"/> <!-- 2.5 / (3.6 * 2.0) * 1000 -->
-      <define name="OPTICFLOW_FY" value="347.22222222"/> <!-- 2.5 / (3.6 * 2.0) * 1000 -->
-      <define name="OPTICFLOW_FOV_W" value="0.665499265"/> <!-- 2 * arctan(240 / (2*347.22222222)) -->
-      <define name="OPTICFLOW_FOV_H" value="0.665499265"/> <!-- 2 * arctan(240 / (2*347.22222222)) -->
-      <define name="OPTICFLOW_DEROTATION" value="0"/> <!-- formulas are not correct for the front cam -->
+      <define name="OPTICFLOW_DEROTATION" value="1"/>
       <define name="OPTICFLOW_DEROTATION_CORRECTION_FACTOR_X" value="0.8"/> <!--Obtained from a linefit--> 
       <define name="OPTICFLOW_DEROTATION_CORRECTION_FACTOR_Y" value="0.85"/> <!--Obtained from a linefit--> 
       <define name="OPTICFLOW_FEATURE_MANAGEMENT" value="0"/> <!-- feature  management still sucks -->
+      <define name="OPTICFLOW_TRACK_BACK" value="1"/> 
+      <define name="OPTICFLOW_SHOW_FLOW" value="1"/> 
     </module>
 
     <module name="optical_flow_landing">
@@ -74,13 +71,13 @@
 
     <module name="video_rtp_stream">
       <define name="VIEWVIDEO_CAMERA" value="front_camera"/>
-      <define name="VIEWVIDEO_CAMERA2" value="bottom_camera"/>
+      <!-- <define name="VIEWVIDEO_CAMERA2" value="bottom_camera"/> -->
       <define name="VIEWVIDEO_DOWNSIZE_FACTOR" value="1"/>
       <define name="VIEWVIDEO_QUALITY_FACTOR" value="40"/>
     </module>
 
     <!--<module name="bebop_ae_awb"/>-->
-  </modules>
+  </firmware>
 
   <commands>
     <axis name="PITCH" failsafe_value="0"/>

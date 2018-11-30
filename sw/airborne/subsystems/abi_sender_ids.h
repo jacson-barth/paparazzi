@@ -68,10 +68,6 @@
 #define BARO_SCP_SENDER_ID 17
 #endif
 
-#ifndef BARO_PBN_SENDER_ID
-#define BARO_PBN_SENDER_ID 18
-#endif
-
 #ifndef BARO_SIM_SENDER_ID
 #define BARO_SIM_SENDER_ID 19
 #endif
@@ -86,6 +82,32 @@
  */
 #ifndef MS45XX_SENDER_ID
 #define MS45XX_SENDER_ID 40
+#endif
+
+/*
+ * IDs of airspeed sensors (message 14)
+ */
+#ifndef AIRSPEED_NPS_ID
+#define AIRSPEED_NPS_ID 1
+#endif
+
+#ifndef AIRSPEED_ADC_ID
+#define AIRSPEED_ADC_ID 2
+#endif
+
+/*
+ * IDs of Incidence angles (message 24)
+ */
+#ifndef AOA_ADC_ID
+#define AOA_ADC_ID 1
+#endif
+
+#ifndef AOA_PWM_ID
+#define AOA_PWM_ID 2
+#endif
+
+#ifndef INCIDENCE_NPS_ID
+#define INCIDENCE_NPS_ID 20
 #endif
 
 /*
@@ -130,6 +152,7 @@
 #ifndef AGL_RAY_SENSOR_GAZEBO_ID
 #define AGL_RAY_SENSOR_GAZEBO_ID 10
 #endif
+
 /*
  * IDs of magnetometer sensors (including IMUs with mag)
  */
@@ -281,7 +304,7 @@
 #endif
 
 /*
- * IDs of OPTICFLOW estimates (message 12)
+ * IDs of OPTICFLOW estimates (message 11)
  */
 #ifndef FLOW_OPTICFLOW_ID
 #define FLOW_OPTICFLOW_ID 1
@@ -376,6 +399,18 @@
 
 #ifndef ACCEL_SP_FCR_ID
 #define ACCEL_SP_FCR_ID 1 // Formation Control Rotorcraft
+#endif
+
+/*
+ * RELATIVE_LOCALIZATION communication (message 24)
+*/
+#ifndef RELATIVE_LOCALIZATION_ID
+#define RELATIVE_LOCALIZATION_ID 1
+#endif
+
+
+#ifndef DETECT_GATE_ABI_ID
+#define DETECT_GATE_ABI_ID 33
 #endif
 
 #endif /* ABI_SENDER_IDS_H */
