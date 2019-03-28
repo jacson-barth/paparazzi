@@ -475,7 +475,7 @@ void stabilization_mfc_run(bool in_flight)
   mfc_roll_cmd = 0.f;
   //mfc_pitch_cmd = 0.f;
   mfc_yaw_cmd  = 0.f; 
-  throttle_cmd = 0.f;
+  //throttle_cmd = 0.f;
   //                   Mixing MFC commands for attitude stabilization (rotorcraft setup) -- (coded )
   // Elevon left
   actuators_pprz[0] = (int16_t) +mfc_pitch_cmd - mfc_yaw_cmd;
